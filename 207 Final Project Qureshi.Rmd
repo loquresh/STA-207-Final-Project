@@ -1,0 +1,1113 @@
+---
+title: "Class Type Analysis on First Grade Students"
+author: "Leena Qureshi"
+date: "March 18, 2024"
+output:
+  html_document:
+    df_print: paged
+    number_sections: yes
+---
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(fig.pos = 'H')
+```
+
+```{r, results='hide', echo=FALSE, message=FALSE, warning=FALSE}
+library(haven)
+library(ggplot2)
+library(knitr)
+library(dplyr)
+library(kableExtra)
+library(gridExtra)
+library(lme4)
+library(car)
+library(ggalluvial)
+library(grid)
+```
+
+# Abstract {.unnumbered}
+
+This project delves into the Tennessee Student Teacher Achievement Ratio (Project STAR) dataset to examine the effects of class size reduction (CSR) on students' academic performance, specifically focusing on first-grade math scores and the potential impact of variations in class type and learning environment. By investigating the relationship between class type and math achievement, we aim to contribute to a broader understanding of educational practice and policy.
+
+Following an introduction and background information on Project STAR, this project begins with a detailed examination of the study's design and implementation. We then proceed to explore key predictors of interest before proposing a suitable model to address the question of class size and math scale scores. Subsequently, we engage in a discussion about the implications of our model's findings, potential methods for enhancing its effectiveness, and future research directions.
+
+# Introduction {.unnumbered}
+
+In this project, we utilize the dataset taken from the Tennessee Student Teacher Achievement Ratio, also referred to as Project STAR, an influential four-year longitudinal study investigating class size reduction (CSR) and its impact on students' test scores. Project STAR aimed to evaluate how different class sizes influence students' academic performance and achievement, taking into account external factors such as student and teacher demographics as well as school location. Fundamentally, Project STAR looked to answer the question: *How do variations in class size influence student learning outcomes?* This study profoundly changed the landscape of educational policy and practice, particularly for parents, educators, and policy-makers who are invested in the success and academic outcomes of future generations.
+
+Although the dataset is comprised of scale scores for math and reading spanning from kindergarten to the third grade, our primary focus is in the math scores of first graders, specifically. We hope to uncover any differences in math scores across different class types and determine which class structure is associated with the highest math scale score.
+
+Determining the effects of class size on students' educational outcomes holds significant implications for future classroom design and teaching delivery methods. If there indeed exists an impact of different class types on students' learning, retention, and matriculation, it would be prudent for policy-makers and educators to incorporate these findings into their respective schools.
+
+# Background {.unnumbered}
+
+### Data Source: {.unnumbered}
+
+The data for this analysis is sourced from Project STAR (Student Teacher Achievement Ratio).
+
+### Target Population & Sampling Mechanism: {.unnumbered}
+
+Beginning in kindergarten, students were randomly assigned to three types of classes: 'Small' (about 15-17 students), 'Regular' (about 22-25 students), and 'Regular with a full-time Aide' (also about 22-25 students) across 79 schools. Each year, around 7,000 students were enrolled in the STAR program. Each participating school had at least one of each class type, ensuring a robust and parsimonious within-school design. This class arrangement remained consistent throughout the school year, with no interventions other than variations in class size and the provision of a full-time teacher aide.[1]
+
+### Variables of Interest: {.unnumbered}
+
+*Class Size*: This variable represents the number of students assigned to a particular classroom, categorized into Small (Type 1), Regular (Type 2), or Regular with Aide classes (Type 3).
+
+*Math Scale Score*: Math Scale Score measured using standardized tests assessing mathematical aptitude. Scores are gathered on a continuous scale and serve as indicators of students' academic performance.
+
+*Demographic Characteristics*: Project STAR also collects data on various demographic variables such as race (White, Black, Asian, Hispanic, Native American, or Other), gender, socioeconomic status, and school environment (Inner-City, Rural, Urban, or Suburban). These variables allow for the examination of potential disparities in educational outcomes across different student groups.
+
+*School and Teacher Identifiers*: School identifiers (School ID) help identify the specific institutions where the study was conducted, while teacher identifiers (Teacher ID) allow researchers to attribute outcomes to individual educators, facilitating analyses related to teaching effectiveness and classroom dynamics.
+
+### Existing Research: {.unnumbered}
+
+Project STAR (Tennessee Student Teacher Achievement Ratio) stands as a cornerstone in educational research, particularly in its exploration of the relationship between class size reduction (CSR) and students' academic performance. Extensive analysis and reviews of existing research within Project STAR have provided significant insights into the impact of class size on a wide variety of educational outcomes.
+
+Numerous studies within Project STAR have demonstrated the positive effects of smaller class sizes on students' academic achievement. Findings indicate that students in smaller classes tend to perform better academically compared to those in larger classes. Notably, a study led by Krueger and Whitmore [5] found that students who were randomly assigned to smaller classes in Project STAR exhibited higher test scores and improved long-term outcomes, such as higher graduation rates and increased college attendance. Achilles [4] contributed to the discourse on class-size policy by discussing the STAR experiment and its broader implications. Their policy brief offered insights into the methodological approaches employed in Project STAR and examined the practical implications of class-size reduction strategies for improving student outcomes.
+
+# Design {.unnumbered}
+
+**Initial Design**
+
+*Random Assignment*: Project STAR randomized students beginning in kindergarten into 'Small' classes (15-17 students), 'Regular' classes (22-25 students), or 'Regular with a full-time Aide' classes (22-25 students). Random assignment helps ensure that any differences observed between groups can be attributed to the intervention (class size reduction) rather than pre-existing differences between students.
+
+*Class Size Variation* : The experiment involved varying class sizes across the three class types. Small classes typically had around 15-17 students, Regular classes had around 22-25 students, and Regular with Teacher Aide classes had around 22-25 students with an an aide present.
+
+*Longitudinal Study*: The longitudinal nature of Project STAR allows researchers to explore the temporal changes and sustained impacts overtime. This approach to understanding the effects of CSR offers a nuanced look into how class size impacts students across different educational stages. The within-school design allowed the schools to maintain these class arrangements throughout the course of the school year and beyond.
+
+*Multiple Outcome Measures*: Researchers collected various outcome measures, including standardized test scores, teacher ratings, student surveys, and administrative records, to assess the impact of class size reduction on different aspects of student learning and development.
+
+**Addendum to Initial Design**
+
+```{r, results='hide',echo=FALSE, warning=FALSE, message=FALSE}
+
+#Read in data #STAR_OG 
+
+STAR_OG <- read_sav("~/Downloads/STAR_Students.sav")
+
+#Get dataset with Kindergarten and First Grade variables 
+
+relevant_col <- c("FLAGSGK", "FLAGSG1", "gkclasstype", "g1classtype", "gkschid", "g1schid", "gksurban", "g1surban", "gktchid", "g1tchid", "gkthighdegree", "g1thighdegree", "gktcareer", "g1tcareer", "gktyears", "g1tyears", "gktmathss", "g1tmathss")
+
+#Subset STAR_OG with relevant columns 
+
+STARK1 <- STAR_OG[ ,relevant_col]
+
+#Omit NA from First Grade math scores 
+
+STARK1 <- STARK1 %>%
+  filter(!is.na(STARK1$g1tmathss))
+
+```
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+
+# Calculate transition counts
+transition_counts <- STARK1 %>%
+  group_by(gkclasstype, g1classtype) %>%
+  summarise(count = n()) %>%
+  ungroup()
+
+# Calculate percentages
+transition_counts <- transition_counts %>%
+  group_by(gkclasstype) %>%
+  mutate(percentage = count / sum(count) * 100) %>%
+  ungroup()
+
+transition_table <- transition_counts %>%
+  kable("html", caption = "Table 1: Transition Counts and Percentages", col.names = c("Kindergarten", "First", "Count", "Percentage"), digits = 2) %>%
+  kable_classic(full_width = FALSE, html_font = "Cambria", position = "float_right") %>%
+  add_header_above(c(" ", "Transition Counts" = 2, "Percentage" = 1))
+
+transition_table
+
+```
+
+This study was designed to follow a single cohort of students from kindergarten to the third grade. It is important to note that some students began their public school education in the first grade, hence the presence of some NA values in the kindergarten dataset. Within each school, students were randomly assigned to different Class Types with the intent of continuing with that assigned Class Type throughout the duration of the study. Both teachers and teacher aides were randomized to classes to minimize potential bias. Only 26.6% of the initial cohort remained in the study from kindergarten to the third grade. Additionally, for students who entered in the first grade, the study's retention rate was 22.0%.
+
+[Notably, a significant modification to the study's design occurred after the kindergarten year. Due to the lack of substantial differences in achievements between Regular and Regular Aide classes at the end of the year, approximately half of the Regular students were randomly assigned to Regular Aide, and vice versa. The exchange of students is visually represented in the alluvial plot shown in *Figure 1*.]{.underline} [2]
+
+*Table 1* Illuminates one deviation from the intended random reassignment of Regular and Regular Aide students from kindergarten to the first grade: Students in Small Classes were not to be reassigned to other Class Types, however 7.5% of Small Class students were reassigned to either Regular or Regular Aide classes. This is likely due to some form of noncompliance with the intended study design. Small Class retention rate could indicate a stability in student learning environment that may impact students' math scores.
+
+```{r, results='hide', echo=FALSE, message=FALSE, warning=FALSE, fig.width=5, fig.height=3, fig.align='center'}
+
+
+#alluvial plot of class type transitions from K to First 
+
+alluvial <- ggplot(STARK1, aes(axis1 = as.factor(gkclasstype), axis2 = as.factor(g1classtype))) +
+  geom_alluvium(aes(fill = as.factor(gkclasstype)), width = 1/12) +
+  geom_stratum() +
+  geom_text(stat = "stratum", aes(label = after_stat(stratum))) +
+  scale_x_discrete(limits = c("gkclasstype", "g1classtype"), expand = c(0.05, 0), labels = c("Kindergarten", "First Grade")) +
+  theme_classic(base_size = 8) +
+  labs(title = "Alluvial Plot of Class Type",
+       fill = "Class Type")+
+  scale_fill_manual(values = c("#AEC09A", "#5fa8cc", "#EFB9AD", "khaki"), labels = c("Small", "Regular", "Regular with Aide"))
+  
+```
+
+```{r, results='hide', echo=FALSE, message=FALSE, warning=FALSE, fig.height=3, fig.align='center'}
+
+#Create a dataset with a new column indicating if that student (unit) changes class type from k to 1 
+
+STARK1 <- STARK1 %>%
+ mutate(same_class_type = ifelse(is.na(gkclasstype) | gkclasstype != g1classtype, 1, 0)) #K NA = 1 (unchanged)
+
+#Data for unchanged class types (gkclasstype == g1classtype)
+unchanged_same_class <- STARK1 %>%
+  filter(!is.na(gkclasstype), gkclasstype == g1classtype)
+
+#Data for changed class types (gkclasstype != g1classtype)
+changed_class <- STARK1 %>%
+  filter(!is.na(gkclasstype), gkclasstype != g1classtype)
+
+#Data for new students (gkclasstype is NA and g1classtype is not NA)
+new_students <- STARK1 %>%
+  filter(is.na(gkclasstype) & !is.na(g1classtype))
+
+#Plot
+classtypemeans_transitions <- ggplot() +
+  geom_density(data = unchanged_same_class, aes(x = g1tmathss), fill = "#AEC09A", alpha = 0.5) +
+  geom_density(data = changed_class, aes(x = g1tmathss), fill = "#5fa8cc", alpha = 0.5) +
+  geom_density(data = new_students, aes(x = g1tmathss), fill = "#EFB9AD", alpha = 0.5) +
+  labs(x = "Math Score", y = "Density", title = "Distribution of Math Scores by Class Type Change") +
+  scale_fill_manual(values = c("#AEC09A", "#5fa8cc", "#EFB9AD"), 
+                    labels = c("Unchanged Class Type", "Changed Class Type", "New Students")) +
+  theme_classic(base_size = 8)
+
+
+grid.arrange(alluvial, classtypemeans_transitions, nrow = 1)
+
+
+#Mean scores of changed class types vs unchanged class vs new students
+
+mean(changed_class$g1tmathss)
+mean(unchanged_same_class$g1tmathss)
+mean(new_students$g1tmathss)
+
+```
+
+::: {style="text-align: center;"}
+***Figure 1***: *Alluvial Plot of Class Type Transitions.* This plot represents the transition of Class Types between kindergarten and first grade.
+:::
+
+::: {style="text-align: center;"}
+***Figure 2***: *Distribution Plots of Changed, Unchanged, and New Students.* This plot represents the distribution plot of math scores for students categorized as Changed (green), Unchanged (blue), and New Students (pink).
+:::
+
+In *Figure 2*, it is evident that new incoming first-grade students exhibit a lower mean math score in the first grade, with an average score of 522.48. Conversely, students who were reassigned between Regular and Regular Aide classes demonstrated a slightly higher mean score of 532.48. *Finally, students who remained consistently in their assigned class exhibited the highest average mean of 535.79.* This could indicate that consistency of Class Type plays a role in the Math Scale Score of students. 
+
+Another important consideration regarding the design of this study is the overlap in class sizes between Small, Regular, and Regular Aide classes. This overlap has the potential to confound the study's design, particularly in the context of investigating the effects of class size reduction. It is essential for such a study to emphasize the differences in treatment class sizes to ensure the validity of the findings. *Figure 3* illustrates the extent of this overlap between Small Classes and Regular classes, with or without aide. We find there are 185 Small Classes that have 18 or more students in a class (exceeding the intended 15-17) and 33 Regular and Regular Aide classes that have less than 18 student in a class (overlapping with the Small classification).
+
+```{r, results='hide', echo=FALSE, message=FALSE, warning=FALSE}
+
+# create function to check missing values in each column
+missing_values <- function(data) {
+  sapply(data, function(x) sum(is.na(x)))
+}
+
+#Create dataset with jjust first grade values (STAR1)
+relevant_col1 <- c('gender', 'race', 'g1classtype', 'g1schid', 'g1surban', 'g1tchid', 'g1tgen', 'g1trace', 'g1thighdegree', 'g1tcareer', 'g1tyears', 'g1classsize', 'g1tmathss', 'g1mathbsraw')
+
+# subset STAR with relevant columns 
+STAR1 <- STAR_OG[,relevant_col1]
+
+# rename columns 
+col_names <- c('Gender', 'Race', 'Class Type', 'School ID', 'Urbanicity', 'Teacher ID', 'Teacher Gender', 'Teacher Race', 'Teacher Highest Degree', 'Teacher Career Level', 'Teacher Years of Experience', 'Class Size', 'Math Scale Score', 'Math Raw Score')
+colnames(STAR1) <- col_names
+
+
+#Remove missing/NA values from Math Scale Score column 
+
+STAR1 <- STAR1 %>%
+  filter(!is.na(STAR1$`Math Scale Score`))
+
+#Also, rename STARK1 variables 
+
+# rename columns 
+col_namesk1 <- c("Flagk", "Flag1", "Class Type: K", "Class Type: 1", "School ID: K", "School ID: 1", "Urban: K", "Urban: 1", "Teacher ID: K", "Teacher ID: 1", "Teacher Highest Degree: K", "Teacher Highest Degree: 1", "Teacher Career Ladder: K", "Teacher Career Ladder: 1", "Teacher Years of Experience: K", "Teacher Years of Experience: 1", "Math Scale Score: K", "Math Scale Score: 1", "Same Class Transition")
+
+colnames(STARK1) <- col_namesk1
+
+
+```
+
+```{r, results='hide', echo=FALSE, message=FALSE, warning=FALSE, fig.width=5, fig.height=3, fig.align='center'}
+
+#Class Size 
+
+ethnicity_colors <- c("#AEC09A", "#5fa8cc", "#EFB9AD", "khaki", "tomato")
+
+classsizebyclasstype <- ggplot(data = STAR_OG, aes(x = as.factor(g1classtype), y = g1classsize, fill = as.factor(g1classtype)), color = as.factor(g1classtype))+
+  geom_boxplot(alpha = 0.35, na.rm = TRUE)+
+  labs(
+    title = "Class Size By Class Type",
+    y = "Class Type",
+    x = "Class Size",
+    fill = "Class Type"
+  )+
+  scale_fill_manual(values = ethnicity_colors)+
+  theme_classic(base_size = 8)
+
+#How many small classes exceeds 18 students and how many regular and regular with aid classes have fewer than 18 students. 
+
+sum(STAR_OG$g1classtype == 1 & STAR_OG$g1classsize >= 18, na.rm = TRUE)
+
+sum((STAR_OG$g1classtype == 2 | STAR_OG$g1classtype == 3) & STAR_OG$g1classsize < 18, na.rm = TRUE)
+
+
+#Treat Class Size as a continuous variable to deal with the inconsistent Class Type classifications in this study 
+
+classsizeplot <- ggplot(STAR1, aes(x = `Class Size`, y = `Math Scale Score`)) +
+  geom_point(alpha = 0.5) +
+  labs(x = "Class Size", y = "Math Scale Score", title = "Relationship between Class Size and Math Scale Score") +
+  geom_smooth(method = "lm", se = FALSE, color = "red", size = 0.75) +
+  theme_classic(base_size = 7)
+
+grid.arrange(classsizebyclasstype, classsizeplot, nrow = 1)
+```
+
+
+::: {style="text-align: center;"}
+***Figure 3***: *Box Plots of Class Size By Class Type and Class Size as a Continuous Variable* This plot illustrates the size breakdown of each Class Type. We note some overlap between the three Class Types. We visualize Class Size as a continuous variable to observe how this affects Math Scale Scores. 
+:::
+
+The practical implementation and compliance to the intended design poses challenges in this study, potentially influencing the validity of its results. The data suggests deviations from the study's intended design. These discrepancies are to be expected in a study of this nature given the inherent difficultly of fully controlling the lives of students and teachers for the duration of the four-year study. We must further consider the potential ethical considerations when allocating young children to classroom environments that may create disparities in their educational outcomes. This is especially pertinent as the study does not employ a blind treatment assignment, so parents, teachers, and students are aware of their classroom assignments, potentially eliciting some resistance to the study's methodology.
+
+Another criticism of this design pertains to its limited scope, as it only considers one state and lacks diversity among its students. Moreover, there is a significant disparity in the Urbanicity of the schools included in the study. The majority of schools are situated in Rural areas with predominantly White students, while the second most common setting is in Inner-City schools with a predominantly Black student body. Given the clear racial biases in these settings, it may not be useful to generalize the findings of this study to a broader context.
+
+# Descriptive Analysis {.unnumbered}
+
+### Missing Data {.unnumbered}
+
+```{r, results='hide', echo=FALSE, message=FALSE, warning=FALSE, fig.width=5, fig.height=3, fig.align='center'}
+
+#Check if NA values coincide with 0 in FLAGSG1 
+
+sum(STAR_OG$FLAGSG1 == 0 & is.na(STAR_OG$g1tmathss)) #4772 
+
+# total number of missing values in STAR$g1mathss
+
+sum(is.na(STAR_OG$g1tmathss)) #5003
+
+#4.6% of NA values are unnaccounted for #potentially small enough to drop 
+
+#how many students dropped after kindergarden (1 in K and then 0 in 1)
+
+sum(ifelse(STAR_OG$FLAGSGK == 1 & STAR_OG$FLAGSG1 == 0, 1, 0)) #1810 students in Kindergarten and dropped after (not in 1st grade)
+
+#how many students joined after first grade
+
+sum(ifelse(STAR_OG$FLAGSG1 == 1 & STAR_OG$FLAGSG3 == 0, 1, 0)) #2507 students joined after 1st grade 
+
+#missing values in kindergarten coincide with which class type
+
+k_not_1 <- STAR_OG[STAR_OG$FLAGSGK == 1 & STAR_OG$FLAGSG1 == 0, ]
+prop.table(table(k_not_1$gkclasstype))
+
+#missing values in math scale score for k
+
+sum(is.na(STAR_OG$gktmathss)) #5,730 missing scores for kindergarten 
+sum(STAR_OG$FLAGSGK==0) #5,276 is not enrolled in kindergarten #454 are unaccounted for in K
+#total number of missing scores in both kidergarten and first grade for students who were enrolled in both k and 1st grade
+sum(is.na(STAR_OG$gktmathss[STAR_OG$FLAGSGK == 1 & STAR_OG$FLAGSG1 == 1]) & is.na(STAR_OG$g1tmathss[STAR_OG$FLAGSGK == 1 & STAR_OG$FLAGSG1 == 1]))
+
+#how many of the unaccounted for first grade math scores are from each class type or teacher ID. 
+
+na_1_enrolled <- STAR_OG[is.na(STAR_OG$g1tmathss) & STAR_OG$FLAGSG1 == 1, ] #na_1_enrolled should be 231 
+
+prop.table(table(na_1_enrolled$g1tchid))
+prop.table(table(na_1_enrolled$g1classtype))
+
+#how many K repeated #i hae questions....explore this later.. 
+table(STAR_OG$gkrepeat)
+
+#how many NA values by school ID #only accounting for students enrolled in grade 1 
+
+na_by_school <- STAR_OG[which(STAR_OG$FLAGSG1==1), ] %>%
+  group_by(g1schid) %>%
+  summarize(na_count = sum(is.na(g1tmathss)))
+
+sum(na_by_school$na_count)
+
+table(STAR_OG$g1schid)["168211"]
+
+#which class type and teacher do the 28 mising values from this school come from 
+school_168211 <- STAR_OG[STAR_OG$g1schid == "168211" & STAR_OG$FLAGSG1 == 1 & is.na(STAR_OG$g1tmathss), ]
+
+prop.table(table(school_168211$g1classtype))
+table(school_168211$g1classtype)
+table(school_168211$g1tchid)
+
+
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+
+# number of missing values in each column 
+kable(missing_values(STAR1)/nrow(STAR1), caption = "Table 2: Missing Value Proportions", col.names = "Proportion of Missing Values", align = "c", digits = 2) %>%
+  kable_classic(full_width = F, html_font = "Cambria", position = "float_right") 
+
+```
+
+*Table 2* presents the proportion of missing values in each column of the STAR1 dataset (containing only first grade predictors). It is evident that almost all variables exhibit a considerable number of missing data. [Our response variable, Math Scale Score, also has a high proportion of missing values, standing at 43%.]{.underline} This suggests a need to consider strategies to better understand and address missing data in our analysis.
+
+Missing values are likely due to students either dropping the study before scores could be collected or entering the study after the first grade. Of the 5,003 missing data in first-grade Math Scale Scores, 4,772 of these students were not enrolled in STAR during the first grade for one of the two reasons listed previously.
+
+We find that 1,810 students dropped out of Project STAR from kindergarten to first grade. Among these 1,810 students identified, the distribution of students across assigned Class Types seems evenly spread: 27.62% from Class Type 1, 36.90% from Class Type 2, and 35.47% from Class Type 3. This suggests that class assignment is unlikely to be a significant factor contributing to dropping the study. In fact, only a total of 9 students who were enrolled in both kindergarten and first grade have missing scores in both grades, potentially due to noncompliance or clerical error.
+
+It is prudent to examine whether the 231 unaccounted for NA values in first graders' Math Scale Scores originate from a specific Class Type or Teacher ID. If a high proportion come from one or more teachers, it may suggest that the teacher left the study. Likewise, a disproportionately high number of missing values from a certain Class Type could indicate a removal of that class from the study. However, there is not a notably higher number of missing values associated with any specific Teacher ID or Class Type.
+
+Of the 5,003 missing values in Math Scale Score, we chose to remove all of them in further analysis. Since 4,772 are not enrolled in the grade of interest and the 231 'unaccounted' for students comprise less than 5% of the total number of NA entries, the effect of dropping these additional NA values is relatively small. We believe this is the most sensible approach to ensure the reliability and usability of our analysis. Without removing missing values from our response variable, our data is incomplete and cannot be representative of our intended analysis. [One concern with this approach is that if the missing values are not randomly missing, this may interfere with the randomization assumption of the remaining data points.]{.underline}
+
+### Proportion Analysis {.unnumbered}
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+
+#EDA of Class Type 
+
+kable(prop.table(table(STAR1$`Class Type`)), caption = "Table 3: Proportion of Class Type", digits = 2) %>%
+  kable_classic(full_width = FALSE, html_font = "Cambria", position = "float_right")
+
+
+```
+
+In the Appendix section of this report, proportion tables and summary statistics for additional potentially relevant variables concerning first graders can be found. These variables include Gender, Urbanicity Teacher Gender, Teacher Race,Teacher Highest Degree, Teacher Career Level, Teacher Years of Experience, and Class Size. Despite their potential relevance, we have omitted these tables from the main text as they are not immediately pertinent to our primary research question of interest. However, they remain accessible for reference and further analysis. *Table 3* is provided in the main text, presenting the proportional breakdown of the three different Class Types. Small Class Types occur the most infrequently and Regular Class Types occur the most frequently, however the difference is small and expected as Regular classes are likely easier for schools to implement and maintain.
+
+
+### Class and Math Scale Score {.unnumbered}
+
+```{r, results='hide', echo=FALSE, warning=FALSE, message=FALSE}
+
+#Aggregate by Teacher ID --> Class as unit of observation 
+#399 Teachers
+
+STAR1_T <- STAR1 %>% 
+  group_by(`Teacher ID`) %>%
+  summarise(
+    Average_Math = mean(`Math Scale Score`, na.rm = TRUE),
+    SD_Math = sd(`Math Scale Score` , na.rm = TRUE),
+    Median_Math = median(`Math Scale Score`, na.rm = TRUE),
+    Q25_Math = quantile(`Math Scale Score`, 0.25, na.rm = TRUE),
+    Q75_Math = quantile(`Math Scale Score`, 0.75, na.rm = TRUE),
+    Class_Type = first(`Class Type`),
+    School_ID = first(`School ID`),
+    Teacher_Career_Level = first(`Teacher Career Level`),
+    Teacher_Years_Exp = first(`Teacher Years of Experience`),
+    School_Urban = first(`Urbanicity`),
+    Race = first(`Race`))
+
+
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, fig.width=5, fig.height=3, fig.align='center', cache=TRUE}
+
+#plot math scores for first graders 
+
+math_score_boxplot <- ggplot(STAR1, aes(x = `Math Scale Score`))+
+  geom_boxplot(color = "#1A2902")+
+  theme_classic(base_size = 8)+
+  labs(
+    title = "Boxplot of 1st Grade Math Scale Scores"
+  )
+
+math_score_distplot <- ggplot(STAR1, aes(x = `Math Scale Score`)) +
+  geom_density(fill = "khaki", color = "#1A2902", alpha = 0.4) + 
+  labs(title = "Density of Math Scale Scores",
+       x = "Math Scale Score",
+       y = "Frequency") +
+  theme_classic(base_size = 7)
+
+set.seed(123)
+
+num_samples <- 20
+
+#function to generate random samples of each class type
+generate_random_samples <- function(class_type) {
+  STAR1 %>%
+    filter(`Class Type` == class_type) %>%
+    sample_n(num_samples) %>%
+    pull(`Math Scale Score`)
+}
+
+#separate density plots for each class type with overlaid random samples
+
+plot_class1 <- ggplot(STAR1[STAR1$`Class Type` == 1, ], aes(x = `Math Scale Score`)) +
+  geom_density(fill = "#AEC09A", color = "#1A2902", alpha = 0.4) +
+  labs(x = "Math Scale Score", y = "Density", title = "Class Type 1")+
+  theme_classic(base_size = 7)+
+  theme(panel.grid = element_blank())+
+  xlim(min(STAR1$`Math Scale Score`), max(STAR1$`Math Scale Score`))
+
+for (i in 1:3) {
+  plot_class1 <- plot_class1 +
+    geom_density(data = data.frame(x = generate_random_samples(1)), aes(x = x), color = "#AEC09A", alpha = 0.10 )
+}
+
+plot_class2 <- ggplot(STAR1[STAR1$`Class Type` == 2, ], aes(x = `Math Scale Score`)) +
+  geom_density(fill = "#5fa8cc", color = "#1A2902", alpha = 0.4) +
+  labs(x = "Math Scale Score", y = "Density", title = "Class Type 2")+
+  theme_classic(base_size = 7)+
+  theme(panel.grid = element_blank())+
+  xlim(min(STAR1$`Math Scale Score`), max(STAR1$`Math Scale Score`))
+
+for (i in 1:3) {
+  plot_class2 <- plot_class2 +
+    geom_density(data = data.frame(x = generate_random_samples(2)), aes(x = x), color = "#5fa8cc", alpha = 0.10)
+}
+
+plot_class3 <- ggplot(STAR1[STAR1$`Class Type` == 3, ], aes(x = `Math Scale Score`)) +
+  geom_density(fill = "#EFB9AD", color = "#1A2902", alpha = 0.4) +
+  labs(x = "Math Scale Score", y = "Density", title = "Class Type 3")+
+  theme_classic(base_size = 7)+
+  theme(panel.grid = element_blank())+
+  xlim(min(STAR1$`Math Scale Score`), max(STAR1$`Math Scale Score`))
+
+for (i in 1:3) {
+  plot_class3 <- plot_class3 +
+    geom_density(data = data.frame(x = generate_random_samples(3)), aes(x = x), color = "#EFB9AD", alpha = 0.10)
+}
+
+
+grid.arrange(math_score_distplot, plot_class1, plot_class2, plot_class3, nrow = 1)
+
+```
+
+::: {style="text-align: center;"}
+***Figure 4***: *Distribution Plots of Math Scale Score by Class Type.* This plot represents the distribution plot of math scores for first grade students by class types.
+:::
+
+```{r, echo=FALSE, warning=FALSE}
+
+#summary statistics by class types 
+class_type_summary <- STAR1 %>%
+  group_by(`Class Type`) %>%
+  summarise(
+    Mean = mean(`Math Scale Score`, na.rm = TRUE),
+    Median = median(`Math Scale Score`, na.rm = TRUE)
+  )
+
+#Class Type 1: mean: 539 median: 535
+#Class Type 2: mean: 525 median: 523
+#Class Type 3: mean: 530 median: 529 
+
+mean_median_values <- data.frame(
+  ClassType = c("Overall", 1, 2, 3),
+  Mean = c(530.5,539,525,530),
+  Median = c(529,535,523,529)
+)
+
+
+
+kable(mean_median_values, caption = "Table 4: Mean & Median Values", align = 'c') %>%
+  kable_classic(full_width = FALSE, html_font = "Cambria", position = "center")
+
+```
+
+*Figure 4* refers to the four density plots of Math Scale Score. The first plot represents the overall Math Scale Score for all students as individual units. We observe a relatively symmetrical distribution, with data points evenly distributed around the center. The subsequent three plots depict the density distribution of Math Scale Score by Class Type. Samples from each class type are superimposed onto these density plots, showcasing the consistent symmetric nature of the distributions. Most notably, the mean and median for all four plots are relatively close in value. [Given the symmetric nature of the data, either the mean or the median are equally useful summary statistics. For this analysis, we opt to use the mean as our primary measure of interest.]{.underline} *Table 4* confirms a difference in mean math scores for different Class Types. We test the significance of this difference later in our analysis. Teachers who teach Smaller Classes demonstrate higher average Math Scale Scores compared to teachers who teach Regular Classes, regardless of the presence of an aide. Additionally, this table suggests that the inclusion of teaching aides in Regular Classes does not result in a significant improvement in average math scores of students.
+
+### Student Ethnicity {.unnumbered}
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, fig.width=5, fig.height=3, fig.align='center'}
+
+
+#Density plots of Math Scale Score based on Ethnicity
+
+STAR_race_na.rm <- subset(STAR1, Race != 6)
+
+
+mean_score_ethnicity <- aggregate(`Math Scale Score` ~ Race, data = STAR_race_na.rm, FUN = mean)
+
+ethnicity_math <- ggplot(STAR_race_na.rm, aes(x = `Math Scale Score`, fill = as.factor(Race)))+
+  geom_density(alpha = 0.25)+
+  geom_vline(data = mean_score_ethnicity, aes(xintercept = `Math Scale Score`, color = as.factor(Race)), linetype = "dashed", size = 0.35, show.legend = FALSE)+
+  labs(
+    y = "Density",
+    title = "Density Plot by Ethnicity"
+  )+
+  scale_fill_manual(name = "Ethnicity", values = ethnicity_colors, label = c("White", "Black", "Asian", "Hispanic", "Native American"))+
+  theme_classic()+
+   facet_wrap(~Race, nrow = 1)
+
+#Mean Score by Ethnicity: White: 539.63, Black: 511.81, Asian: 540.68, Hispanic: 546.89, Native American: 493.50
+  
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, fig.width=5, fig.height=3, fig.align='center'}
+
+#Explore Ethnicities and Class Types 
+
+class_names <- c("Small", "Regular", "Regular Aide")
+
+ethnicity_class <- ggplot(STAR_race_na.rm, aes(x = as.factor(Race), y = `Math Scale Score`, fill = as.factor(`Class Type`))) + 
+  geom_boxplot(alpha = 0.35)+
+  scale_fill_manual(values = ethnicity_colors, labels = class_names)+
+  labs(
+    title = "Math Scores by Ethnicity & Class Type",
+    y = "Math Scale Score",
+    x = "Race",
+    fill = "Class Type"
+  )+
+  theme_classic(base_size = 8)+
+  scale_x_discrete(labels = c("White", "Black", "Asian", "Hispanic", "Native American"))
+  
+
+
+
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, fig.align='center'}
+
+ethnicity_urb <- ggplot(STAR_race_na.rm, aes(x = as.factor(Urbanicity), fill = as.factor(Race)))+
+  geom_bar(alpha = 0.45)+
+  scale_fill_manual(values = ethnicity_colors, labels = c("White", "Black", "Asian", "Hispanic", "Native American"))+
+  labs(
+    title = "Ethnicity and Urbanicity",
+    x = "Urbanicity",
+    fill = "Race"
+  )+
+  theme_classic(base_size = 8)+
+  scale_x_discrete(labels = c("Inner City", "Suburban", "Rural", "Urban"))
+
+grid.arrange(ethnicity_math, ethnicity_class, ethnicity_urb, nrow = 3)
+
+
+```
+
+::: {style="text-align: center;"}
+***Figure 5***: *Distribution Plots of Math Scale Score by Student Ethnicity.* This plot represents the distribution plot of math scores for first grade students by ethnic background.
+:::
+
+::: {style="text-align: center;"}
+***Figure 6***: *Box Plots of Math Scale Score by Student Ethnicity and Class Type.* This plot represents the box plots of math scores for first grade students by ethnic background and class type assignment.
+:::
+
+::: {style="text-align: center;"}
+***Figure 7***: *Bar Chart of Urbanicity and Student Ethnicity.* This bar plot represents the proportional breakdown of students' ethnicity based on their schools' urbanicity.
+:::
+
+In exploring the influence of student race on Math Scale Score, we observe that Hispanic students present the highest mean score among the five ethnicities at 546.89, while Native American students display the lowest mean scale score at 493.50. Additionally, in *Figure 6*, we provide a breakdown of each ethnicity's Math Scale Scores based on their respective class types. *However, it is crucial to acknowledge a significant limitation of this data: Asian, Hispanic, and Native American students each comprise less than 1% of the participants in Project STAR.* This insufficient sample size restricts the statistical power of these findings, making it challenging to draw definitive conclusions about the outcomes of Asian, Hispanic, Native American students.
+
+Moreover, from *Figure 6*, we observe that Small Class Types yield notably lower math scores for Asian students and Native American students are only in present in two Class Types. If we intend to incorporate ethnicity as a factor in analyzing mean math scores, we must carefully consider the potential impact of excluding Asian, Hispanic, and Native American students from the analysis or grouping them into one category (Other).
+
+*Figure 7* demonstrates that the majority of Inner-City students are Black, while Rural students are predominantly White. This figure also tells us that there may be a strong association between Race and Urbanicity. We test this using a contingency table and a Chi-Squared test. With a p-value of 2.2e-16, we reject the null hypothesis and conclude that there is evidence for a significant association between Race and Urbanicity leading to potential multicollinearity issues if present in the same model.
+
+```{r, results='hide', echo=FALSE, warning=FALSE, message=FALSE}
+
+#Check for correlation between urbanicity and race
+
+chisq.test((table(STAR1$Urbanicity, STAR1$Race))) #p-value 2.2e-16
+
+#small p-value --> reject null --> association/correlation between Race and Urbanicity
+```
+
+### School ID {.unnumbered}
+
+```{r, results='hide', echo=FALSE, warning=FALSE, message=FALSE}
+
+#group by school ID and summarize (76 school IDs)
+
+STAR_S <- STAR1 %>%
+  group_by(`School ID`) %>%
+  summarise(
+    avg_math1 = mean(`Math Scale Score`, na.rm = TRUE),
+    sd_math1 = sd(`Math Scale Score` , na.rm = TRUE),
+    median_math1 = median(`Math Scale Score`, na.rm = TRUE),
+    q25_math1 = quantile(`Math Scale Score`, 0.25, na.rm = TRUE),
+    q75_math1 = quantile(`Math Scale Score`, 0.75, na.rm = TRUE),
+    Urbanicity = first(`Urbanicity`))
+    
+
+#school ID with three highest average math scaled score and three lowest average math scaled score
+STAR_S %>%
+  arrange(desc(avg_math1)) %>%
+  slice_head(n=3)
+
+STAR_S %>%
+  arrange(avg_math1) %>%
+  slice_head(n=3)
+
+#summary statistics of class type by school ID
+
+summary_stats <- STAR1 %>%
+  group_by(`School ID`) %>%
+  summarise(
+    mean_class_type = mean(`Class Type`),
+    median_class_type = median(`Class Type`),
+    count_class_type_1 = sum(`Class Type` == 1),
+    count_class_type_2 = sum(`Class Type` == 2),
+    count_class_type_3 = sum(`Class Type` == 3)
+  )
+
+
+summary(summary_stats$count_class_type_1)
+summary(summary_stats$count_class_type_2)
+summary(summary_stats$count_class_type_3)
+
+#check how many schools offer no class type 3 
+
+school_no_class3 <- summary_stats %>%
+  filter(count_class_type_3 == 0)
+
+nrow(school_no_class3)
+
+
+```
+
+We observed a notable disparity in missing values across schools, with School ID #168211 exhibiting a significantly higher number of missing values compared to others. On average, schools have 3 missing values per school (after accounting for students who dropped the program), with a median of 2. However, School ID #168211 stands out with 28 missing values, representing 22.40% of its total 125 students. Further investigation reveals that the missing values in School ID #168211 are evenly distributed among four teachers (7 students each) and across class types (7 dropped from Class Type 1 and 2, and 14 from Class Type 3, split among two teachers). This finding may warrant deeper exploration in subsequent analyses.
+
+Additionally, our summary statistics indicate that there are four schools that do not offer a Regular Aide Class Type. This implies that not all schools offer all types of class configurations, which could potentially influence our analysis. If School ID is a significant predictor of mean math scores, the absence of Class Type 3 in some schools might lead to variations in our results. However, given that only four schools are devoid of Class Type 3, it is unlikely to significantly impact our analysis of Class Types on average math scores.
+
+School ID exhibits high correlation with other predictors in this study, such as Race and Urbanicity. This high correlation raises concerns about multicollinearity, which could affect the stability and interpretability of our model if these predictors are included in our model.
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, fig.width=5, fig.height=3, fig.align='center'}
+
+#boxplot of math scores by school ID and urbanicity
+
+STAR_S_by_urban <- STAR_S[order(STAR_S$Urbanicity), ]
+
+
+urbanicity_means <- STAR_S_by_urban %>% 
+  group_by(Urbanicity) %>% 
+  summarise(mean_avg_math = mean(avg_math1))
+
+urbanicity_colors <- c("#AEC09A", "#5fa8cc", "#EFB9AD", "khaki")
+
+urb_names <- c("White", "Black", "Asian", "Hispanic", "Native American")
+
+urbanicity_school_plot <- ggplot(STAR_S_by_urban, aes(x = as.factor(`School ID`), y = avg_math1, color = as.factor(Urbanicity))) +
+  geom_boxplot() +
+  geom_hline(data = urbanicity_means, aes(yintercept = mean_avg_math, color = as.factor(Urbanicity)), size = 0.35) +
+  labs(title = "Math Scores by School and Urbanicity",
+       y = "Average Math Score",
+       x = "School",
+       fill = "Urbanicity") +
+  scale_color_manual(name = "Urbanicity", values = urbanicity_colors, labels = urb_names) +  
+  theme_classic(base_size = 8)+
+   theme(axis.text.x = element_blank())
+
+grid.arrange(urbanicity_school_plot, nrow = 1)
+
+
+```
+
+::: {style="text-align: center;"}
+***Figure 8***: *Mean Plot of Urbanicity, School ID, and Math Scale Score.*
+:::
+
+*Figure 8* illustrates the difference in mean math scores based on School ID, highlighting the influence of individual schools on students' performance on standardized math tests. Additionally, the analysis reveals the impact of school location, as indicated by the Urbanicity variable. Specifically, students from Inner-City areas tend to demonstrate the lowest Math Scale Scores, whereas those from Rural areas exhibit the highest scores.
+
+```{r, results='hide', echo=FALSE, warning=FALSE, message = FALSE}
+
+#Test for correlation between urbanicity and school ID using chi-squared 
+
+chisq.test((table(STAR1$Urbanicity, STAR1$`School ID`))) #p-value of 2.2e-16
+
+#small p-value --> reject the null --> association between Urbanicity and School ID
+
+```
+
+# Inferential Analysis {.unnumbered}
+
+```{r, results='hide', echo=FALSE, warning=FALSE, message=FALSE}
+
+#Fit a model with Class as a unit (STAR1_T) with Class Type, Urbanicity, and School Location 
+
+fit_1 <- lm(Average_Math ~ as.factor(Class_Type) + as.factor(School_Urban) + as.factor(School_ID), data = STAR1_T)
+
+fit_1_full <- lm(Average_Math ~ as.factor(Class_Type) * as.factor(School_Urban) * as.factor(School_ID), data = STAR1_T)
+
+anova(fit_1, fit_1_full) #insignificant interaction term 
+
+
+anova(fit_1_full) #insignificant interaction terms 
+
+#Fit a model with Class Type, School ID, and Race
+
+#Remove Asian, Hispanic, and NA Race (only one of each)
+#We are only interested in Blak and White students' math scores since that is the data available to us. 
+
+STAR1_T_red <- STAR1_T[!STAR1_T$Race %in% c(3,4,6), ]
+
+
+fit_2 <- lm(Average_Math ~ as.factor(Class_Type) + as.factor(Race) + as.factor(School_ID), data = STAR1_T_red)
+
+fit_2_full <- lm(Average_Math ~ as.factor(Class_Type) * as.factor(Race) * as.factor(School_ID), data = STAR1_T_red)
+
+anova(fit_2, fit_2_full)
+anova(fit_2_full)
+
+```
+
+After exploring the interplay of different variables and our outcome of interest, we choose to fit a model that includes Class Type, School ID, and Race (excluding Asian, Hispanic, and Native American students as they have only one observation each). We fit the three-way ANOVA model (At this stage, the analysis acknowledges the potential influence of multicollinearity between Race and School ID. This issue will be further addressed and refined in subsequent stages of the analysis):
+
+$Y_{ijlk} = \mu_{..} + \alpha_{i} + \beta_{j} + \gamma_{l} +\epsilon_{ijlk}$, where the index $i$ represents the Class Type: Small ($i=1$), Regular ($i=2$), Regular with Aide ($i=3$), and the index $j = 1,...,76$ represents School ID, and $l = 1,2$ represents Race: White ($l=1$) and Black ($l=2$).
+
+**Model Parameters:**
+
+-   $Y_{ijlk}$ denotes the average math scaled score of the $i$^th^ Class Type and the $j$^th^ School ID and the $l$^th^ Race for the $k$^th^ Teacher ID.
+
+-   $\mu_{..}$ denotes the overall average of math scale scores in the population across Class Types, School IDs, and Races.
+
+-   $\alpha_{i}$ denotes the main effect of the $i$^th^ Class Type.
+
+-   $\beta_{j}$ denotes the main effect of the $j$^th^ School ID.
+
+-   $\epsilon_{ijlk}$ denotes the random error in the $i$th Class Type, $j$^th^ School ID, and $l$^th^ Race for the $k$^th^ Teacher ID.
+
+-   The index $n_{ijl}$ denotes the total number of Teacher IDs.
+
+**Assumptions:**
+
+-   The random errors are assumed to be identically and independently distributed from a normal distribution with mean $0$ and variance $\sigma^{2}$.
+
+-   Outcome variable Math Scale Score is continuous
+
+-   Predictor variables Class Type, School ID, and Race must contain at least two categorical groups
+
+-   No significant outliers in our data
+
+-   Each class is an independent observational unit
+
+Fitting a model with Class Type, School ID, and Race, we see that all predictors are significant. When testing against a full model with interactions, we obtain a p-value of 0.2617, indicating that the interaction term can be dropped. Looking at the ANOVA table of the full model gives us the same result; all interactions can be dropped from this model.
+
+### Hypothesis Testing {.unnumbered}
+
+```{r, results='hide', echo=FALSE, warning=FALSE, message=FALSE}
+
+#Hypothesis Test 
+
+anova(fit_2)
+
+```
+
+We are interested in testing whether there exists a treatment effect of the Class Types on the Math Scale Scores. With a significance level of 0.05 we test the following hypothesis:
+
+$H_{0}: \alpha_{i} = 0$ versus $H_{a}:$ not all $a_{i}$ are zero for all $i=1,2,3$
+
+Results from our F-Test give us a p-value of 2.45e-09 suggesting we reject the null hypothesis in favor of the alternative. There exists main effects for Class Types.
+
+Using a similar hypothesis and test for $\beta_j$, where $H_{0}: \beta_{j} = 0$ versus $H_{a}:$ not all $\beta_{j}$ are zero for all $j=1,2,3,4$. With a p-value of 2e-16, we reject the null again in favor of the alternative. There exists main effects for Race.
+
+Testing the significance of School ID in the model $\gamma_{l}$ where $H_{0}: \gamma_{l} = 0$ versus $H_{a}:$ not all $\gamma_{l}$ are zero for $l = 1,2,...,76$. With a p-value of 2e-16, we reject the null again in favor of the alternative. There exists main effects for School ID.
+
+### Tukey Range Test {.unnumbered}
+
+```{r, results='hide', echo=FALSE, warning=FALSE, message=FALSE, fig.width=5, fig.height=3, fig.align='center'}
+
+par(mfrow = c(1,3))
+
+#Conduct Tukey Range Test 
+T.ci <- TukeyHSD(aov(Average_Math ~ as.factor(Class_Type) + as.factor(Race) + as.factor(School_ID), data = STAR1_T_red), conf.level = 1 - 0.05)
+
+
+#Plot Tukey Range Test 
+plot(T.ci, las=1, col="#1A2902")
+
+
+```
+
+
+::: {style="text-align: center;"}
+***Figure 9***: *Tukey Range Test Results for Class Type, Race, and School ID.* Plot 1 represents the Tukey Range Test results for Class Type. Plot 2 represents the Tukey Range Test results for Race. Plot 3 represents the Tukey Range Test results for School ID.
+:::
+
+If we believe our model, the Tukey Range Test shows us that Small Class Type has a larger mean Math Scale Score compared to both Regular Class Types. Additionally, we see that that White students have mean Math Scale Scores higher than Black students.
+
+**Advantages of This Model**:
+
+*Incorporates Key Components*: This model integrates four crucial components for assessing student performance outcomes. By considering Class Type, School ID, Teacher ID, and Race simultaneously, it provides a comprehensive framework for understanding the multifaceted influences on student achievement.
+
+*Teacher/Class as a Unit of Observation*: By aggregating Teacher IDs, the model incorporates the influence of individual teachers while maintaining a reasonable level of complexity.
+
+**Disadvantages of This Model**:
+
+*Heteroskedasticity*: It is important to recognize the underlying assumption in our original hypothesis regarding homoskedasticity --- the idea that all students would exhibit uniform variance in performance across different class and school types. This assumption is fundamental for the validity of our ANOVA model, as deviations from homoskedasticity could potentially affect how we interpret the results. 
+
+*Inconsistent Sample Size*: This is an unbalanced ANOVA model where unequal sample size across each school may contribute to violations in homoskedasticity.
+
+*Multicollinearity*: A notable concern in our model is the high correlation observed between School ID and Race. This correlation has the potential to complicate the interpretation of results and may necessitate the inclusion of interaction terms to properly capture the intertwined effects of these variables.
+
+# Sensitivity Analysis {.unnumbered}
+
+
+```{r, results='hide', echo=FALSE, warning=FALSE, message=FALSE, fig.align='center'}
+
+#Residual Analysis for Fit_2 
+
+par(mfrow = c(2,2))
+plot(fit_2)
+
+#Shapiro Wilk's Test for Normality 
+
+shapiro.test(fit_2$residuals)
+
+#Levene Test for Equal Variance 
+
+leveneTest(Average_Math ~ as.factor(Class_Type) * as.factor(Race) * as.factor(School_ID), data = STAR1_T_red)
+
+chisq.test((table(STAR1_T_red$School_ID, STAR1_T_red$Race))) #p-value = 2.2e-16 --> association between School ID and Race 
+
+chisq.test((table(STAR1_T_red$School_ID, STAR1_T_red$Class_Type))) #p-value = 1 --> no association between School ID and Class Type 
+
+```
+
+::: {style="text-align: center;"}
+***Figure 10***: *Residual Plots for Model.*
+:::
+
+At an $\alpha = 0.05$ significance level, our Shapiro-Wilk's Test for Normality has a small p-value of 0.0001447 indicating a departure from our normality assumption. Additionally, our model does not pass the Levene Test of Equal Variance with a p-value of 6.571e-05. A Chi-Squared test between School ID and Race produces a p-value of 2.2e-16 which tells us there is high collinearity between the two predictors.
+
+### *Methods to Address Unequal Variances*: {.unnumbered}
+
+#### Dropping School ID {.unnumbered}
+
+In our analysis, it is apparent that the geographical location of the school may play a significant role in determining the learning outcomes of a student. School location may signal many things about student and teacher demographics, classroom environment, and socioeconomic status. *We hypothesize that much of the information captured by School ID may already be contained in another variable: Urbanicity.* Urbanicity determines whether a school's location is considered Rural, Inner-City, Suburban, or Urban. We propose the option of fitting a model that drops Schools ID despite its significance in favor of Urbanicity to address unequal variances.
+
+```{r, results='hide', echo=FALSE, warning=FALSE, message=FALSE}
+
+#Test for interactions 
+fit_urban_full <- aov(STAR1_T$Average_Math ~ as.factor(STAR1_T$Class_Type) * as.factor(STAR1_T$School_Urban) * as.factor(STAR1_T$Race) * as.factor(STAR1_T$School_ID))
+
+fit_urban <- aov(STAR1_T$Average_Math ~ as.factor(STAR1_T$Class_Type) + as.factor(STAR1_T$School_Urban) + as.factor(STAR1_T$Race) + as.factor(STAR1_T$School_ID))
+
+anova(fit_urban, fit_urban_full) #interations may be dropped from the model 
+
+#Test if School ID can be dropped from the model if Urbanicity is included 
+
+fit_urban_full2 <- aov(STAR1_T$Average_Math ~ as.factor(STAR1_T$Class_Type) + as.factor(STAR1_T$School_Urban) + as.factor(STAR1_T$Race) + as.factor(STAR1_T$School_ID))
+
+fit_urban2 <- aov(STAR1_T$Average_Math ~ as.factor(STAR1_T$Class_Type) + as.factor(STAR1_T$School_Urban) + as.factor(STAR1_T$Race))
+
+anova(fit_urban2, fit_urban_full2)
+
+summary(fit_urban_full2) #School ID is still significant #Race becomes insignificant when Urbanicity is added to the model 
+
+fit_urban_3 <- aov(STAR1_T$Average_Math ~ as.factor(STAR1_T$Class_Type) + as.factor(STAR1_T$School_Urban))
+
+anova(fit_urban_3)
+
+shapiro.test(fit_urban_3$residuals)
+
+leveneTest(STAR1_T$Average_Math ~ as.factor(STAR1_T$Class_Type) * as.factor(STAR1_T$School_Urban))
+
+```
+
+Fitting the two-way ANOVA model $Y_{ijk} = \mu_{..} + \alpha_{i} + \beta_{j} + \epsilon_{ijk}$, where the index $i$ represents the Class Type: Small ($i=1$), Regular ($i=2$), Regular with Aide ($i=3$), and the index $j$ represents Urbanicity: Inner-City ($j$ = 1), Suburban ($j$ = 2), Rural ($j$ = 3), Urban ($j$ = 4) produces a Shapiro-Wilk's Test that yields a larger p-value of 0.006717, while the Levene Test returns a p-value of 0.8567, suggesting that the equal variances assumption has been satisfied. *Therefore, incorporating Urbanicity as an indicator of school location and removing School ID may improve our adherence to the normality assumption and address concerns regarding unequal variance.* This adjustment has the potential to enhance the accuracy and reliability of our model in assessing the impact of Class Type on Math Scale Scores.
+
+```{r, results='hide', echo=FALSE, warning=FALSE, message=FALSE, fig.width=5, fig.height=3, fig.align='center'}
+
+#Tukey Range Test
+
+par(mfrow = c(1,3))
+
+#Conduct Tukey Range Test 
+T.ci.u <- TukeyHSD(aov(STAR1_T$Average_Math ~ as.factor(STAR1_T$Class_Type) + as.factor(STAR1_T$School_Urban)), conf.level = 1 - 0.05)
+
+
+#Plot Tukey Range Test 
+plot(T.ci.u, las=1, col="#1A2902")
+
+
+```
+Our Tukey Range Test findings confirm again that Small Class Types exhibit higher mean scores compared to both Regular Class Types. Additionally, Inner-City schools demonstrate the lowest mean scores among all Urbanicity types. 
+
+#### Transformations {.unnumbered}
+
+Some transformations can be applied to correct the lack of equal variances in our residuals. We could use a Box-Cox transformation to determine the optimal transformation to apply to the data. In this case, we caution against transformations on this model, especially since heteroskedasticity appears to stem from School ID and transforming a variable like School ID does not have practical applications. 
+
+#### Including an Interaction Term {.unnumbered}
+
+Incorporating an interaction term has the potential to capture additional variability in the data, which may contribute to unequal variances. However, it is crucial to ensure that these interactions are justified through rigorous testing procedures to avoid overfitting the model. The presence of collinearity between School ID and variables such as Race and Urbanicity could potentially mask the significance of interaction effects in this model. This obscures our ability to accurately determine whether these variables should be added to the model or not. We test including the interaction term between School ID and Race in our model to see if this addition improves equal variances, but neither the normality assumption nor the equal variance assumption is improved with this method.
+
+```{r, results='hide', echo=FALSE, warning=FALSE, message=FALSE}
+
+#Fit with interaction between Race and School ID 
+
+fit_2_int <- lm(Average_Math ~ as.factor(Class_Type) + as.factor(School_Urban) * as.factor(School_ID), data = STAR1_T_red)
+
+anova(fit_2_int) #Interaction term is insignificant 
+
+leveneTest(Average_Math ~ as.factor(Class_Type) * as.factor(School_Urban) * as.factor(School_ID), data = STAR1_T_red)
+
+
+
+```
+
+#### Weighted Least Squares {.unnumbered}
+
+To address the issue of unequal variances in our residuals, an alternative approach to ordinary least squares (OLS) regression is weighted least squares (WLS) regression. WLS regression assigns different weights to observations based on their variance, giving less weight to observations with higher variance. This adjustment helps mitigate the impact of heteroskedasticity on parameter estimates and allows for more accurate estimation of model coefficients.
+
+#### Student-Level Analysis {.unnumbered}
+
+Additionally, we can consider analyzing Math Scale Scores using students as an observational unit instead of classes. This could correct unequal error variance if the underlying heteroskedasticity is exacerbated by within-student variability or variability of students within the classes themselves. Another benefit of using a student-level analysis is the ability to observe for kindergarten Math Scale Scores and Class Types can affect Math Scale Scores of first grade. By incorporating Math Scale Scores from kindergarten alongside first grade Class Types and School ID, our model demonstrates that these variables are significant predictors of first grade math scores. There appears to be a positive linear association between the two variables, which tracks intuitively. However, the inclusion of these variables at the student-level does not appear to enhance our model in a meaningful way. 
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE, fig.width=5, fig.height=3, fig.align='center'}
+
+urbb_names <- c("Inner-City", "Suburban", "Rural", "Urban")
+
+ggplot(STAR1, aes(x = as.factor(`Teacher ID`), y = `Math Scale Score`, color = as.factor(`Urbanicity`))) +
+  geom_point(alpha = 0.5) +
+  labs(x = "Teacher ID", y = "Math Scale Score", title = "Student Performance by Class", color = "Urbanicity")+
+   scale_color_manual(name = "Urbanicity", values = urbanicity_colors, labels = urbb_names)+
+  theme_classic(base_size = 7)
+
+
+
+```
+
+::: {style="text-align: center;"}
+***Figure 11***: *Student vs. Class Level Analysis.* The provided plot visualizes the relationship between Math Scale Scores and Teacher IDs, with points colored according to Urbanicity (i.e., Inner-City, Suburban, Rural, Urban). Each point represents an individual student's Math Scale Score within a particular class, differentiated by the teacher who taught the class.
+:::
+
+
+```{r, results='hide', echo=FALSE, warning=FALSE, message=FALSE}
+
+
+#STAR_1 is at the student level 
+
+fit_s1 <- lm(STAR1$`Math Scale Score` ~ as.factor(STAR1$`Class Type`)  + as.factor(STAR1$Race) + as.factor(STAR1$`School ID`))
+
+anova(fit_s1)
+
+leveneTest(STAR1$`Math Scale Score` ~ as.factor(STAR1$`Class Type`)  * as.factor(STAR1$Race) * as.factor(STAR1$`School ID`))
+
+
+```
+
+### *Some methods to combat multicollinearity in our model*: {.unnumbered}
+
+#### Regularization Techniques {.unnumbered}
+
+Regularization techniques, like ridge regression and LASSO regression, can offer strategies to mitigate the multicollinearity between School ID and Race. 
+
+#### Dimension Reduction {.unnumbered}
+
+Techniques like Principle Component Analysis (PCA) and Partial Least Squares (PLS) can address issues with multicollinearity by transforming correlated predictors into smaller sets of unrelated components.
+
+#### Dropping Highly Correlated Preditors {.unnumbered}
+
+Identifying and dropping highly correlated predictors, such as Race, can help alleviate multicollinearity. This new two-way ANOVA model is reminiscent of the model we fit in the initial analysis report. However, it's important to note that heteroskedasticity was still an issue in that model, primarily due to the presence of School ID.
+
+# Causal Inference {.unnumbered}
+
+Assumptions for causal inference:
+
+**Stable Unit Treatment Value Assumption (SUTVA):** SUTVA assumes that the treatment assigned to one unit does not affect the outcomes of other units, and there is no variation in the treatment itself. This assumption ensures that the treatment effect is consistent across units.
+
+**Randomization:** The study should ensure randomization of treatment and treatment units.
+
+**Exchangeability**: Exchangeability means that the potential outcome is independent of treatment type.
+
+**Positivity:** Positivity relies on the assumption that all individuals or treatment units have a positive probability of receiving all treatment levels. Positivity ensures that the treatment effect can be estimated for all units in the population. We check this assumption by checking that all School IDs have all Class Types. We find that 4 schools do not offer all Class Types.
+
+**Double Blind**: In order for this study to be double blind, the teachers and researchers should be unaware of any variations in treatments across different Class Types. A violation of this double blind assumption may introduce biases and undermine the integrity of the study, which may impact student learning outcomes and potentially affect the interpretation of the study. It is clear that this study does not adhere to the double blind assumption.
+
+Though this study was designed with meticulous standards to enable causal inference, the researchers encountered practical hurdles, such as deviations in randomization and breaches in double-blind conditions, which underscore the complexities of implementing educational interventions in real-world settings. These challenges emphasize the need for thorough consideration in our analysis and interpretation, recognizing that while causal inferences are plausible, they are influenced by the experimental context's limitations and nuances. Therefore, while our findings offer valuable insights, they require interpretation with an awareness of the underlying assumptions and potential violations
+
+# Discussion {.unnumbered}
+
+In this project we set out to explore the effects of class size reduction on first grade academic performance using data from the Student Teacher Achievement Ratio (STAR) study. Ultimately, we sought to understand how differences in class size, as well as school environment, impacted students' math scores. Our inferential analysis indicates that students in Small Class Types display an improvement in their mean Math Scale Score compared to students in Regular Class Types, with or without an aide. *This finding was consistent among all statistical models we tested.*
+
+Looking ahead, future researcher could delve deeper into the underlying mechanisms that influence the relationship between class types, race, and student achievement. However, it is important to acknowledge some limitations within our analysis. The observational nature of this study limits our ability to establish causality. External factors like teacher quality and socioeconomic status may also influence student performance, but may not have been adequately accounted for within this analysis. Due to this, caution should be exercised in generalizing the results of this project.
+
+### Caveats {.unnumbered}
+
+*Normality Assumption*: Normality was not fully met in our analysis. A class-level two-way model containing Class Type and Urbanicity comes closest to achieving normality. However, with a large sample size and other assumptions in our model being met, the normality assumption is reasonably robust. 
+
+*Heteroskedascticity*: More concerning that the violation of the normality assumption is the violation of homoskedasticity. This is likely due to the inclusion of School ID in our model. Once again, the two-way model containing Class Type and Urbanicity alone displays equal variances in error terms. This represents our preferred model to overcome the problem of heteroskedasticity. The results of Class Type on Math Scale Score in this model is consistent with our three-way ANOVA model with School ID.
+
+*Discrepancy in Missing Math Scores*: One school exhibits a higher than usual number of missing math scores compared to the other schools. Also, within this school, the number of missing values are evenly spread among four teachers. However, this is a small enough number of students that it likely does not effect the results of our analysis, but could warrant further analysis.
+
+*Changes in Class Types From K to 1*: An addendum to the original study design occurred after the kindergarten year, involving changes in class types. Such alterations can impact student performance, particularly favorably for students who experience consistency in their class type at such an early stage in their education 
+
+# Acknowledgement {.unnumbered}
+
+Feedback for this project discussed with Ben Jewell, Ian Dimapasok, Sara Abril Guevara, Jaewhan Kim, and Jingzhi Sun, as well as Eusong Bae and Professor Chen. 
+
+# References {.unnumbered}
+
+[1] Boozer, M., & Cacciola, S. E. (2001, June). Inside the “Black Box” of Project Star: Estimation of Peer Effects Using Experimental Data. Ssrn.com. https://papers.ssrn.com/Sol3/papers.cfm?abstract_id=277009
+
+[2] Dunn, C., Blatchford, P., Boyd-Zaharias, J., & Tienken, C. (2012). NCPEA POLICY BRIEF CLASS-SIZE POLICY: THE STAR EXPERIMENT AND RELATED CLASS-SIZE STUDIES. 1(2). https://files.eric.ed.gov/fulltext/ED540485.pdf
+
+[3] Tennessee's Student Teacher Achievement Ratio (STAR) project. (n.d.). Tennessee's Student Teacher Achievement Ratio (STAR) project. Retrieved March 18, 2024, from https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/SIWH9F 
+
+[4] Achilles, C. M. (2012). Class-Size Policy: The STAR Experiment and Related Class-Size Studies. NCPEA Policy Brief. Volume 1, Number 2. In ERIC. NCPEA Publications. https://eric.ed.gov/?id=ED540485
+
+[5] Krueger, A. B., & Whitmore, D. M. (2001). The Effect of Attending a Small Class in the Early Grades on College‐test Taking and Middle School Test Results: Evidence from Project Star. The Economic Journal, 111(468), 1–28. https://doi.org/10.1111/1468-0297.00586
+
+# Appendix {.unnumbered}
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+
+#EDA of gender 
+
+table_gender <- kable(table(STAR1$Gender)) %>%
+  kable_classic(full_width = FALSE, html_font = "Cambria", position = "float_left") %>%
+  footnote(general = "Table #: Proportion of Class Type")
+```
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+
+#EDA of Urbanicity
+
+kable(prop.table(table(STAR1$Urbanicity))) %>%
+  kable_classic(full_width = FALSE, html_font = "Cambria", position = "float_left") %>%
+  footnote(general = "Table #: Proportion of Urbanicity")
+
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+
+#EDA of Teacher Race 
+
+kable(prop.table(table(STAR1$`Teacher Race`))) %>%
+  kable_classic(full_width = FALSE, html_font = "Cambria", position = "float_left") %>%
+  footnote(general = "Table #: Proportion of Teacher Race")
+
+```
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+
+#EDA of Teacher Highest Degree
+
+kable(prop.table(table(STAR1$`Teacher Highest Degree`))) %>%
+  kable_classic(full_width = FALSE, html_font = "Cambria", position = "float_left") %>%
+  footnote(general = "Table #: Proportion Highest Degree")
+
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+
+#EDA of Teacher Career Level 
+
+kable(prop.table(table(STAR1$`Teacher Career Level`))) %>%
+  kable_classic(full_width = FALSE, html_font = "Cambria", position = "float_left") %>%
+  footnote(general = "Table #: Proportion of Career Level")
+
+```
+
+```{r, results='hide',echo=FALSE, message=FALSE, warning=FALSE}
+
+#EDA of Teacher Years of Experience 
+
+kable(prop.table(table(STAR1$`Teacher Years of Experience`)), "html") %>%
+  kable_classic(full_width = FALSE, html_font = "Cambria", position = "float_left") %>%
+  footnote(general = "Table #: Proportion of Years of Experience")
+
+```
+
+# Code Appendix {.unnumbered}
+
+```{r ref.label=knitr::all_labels(), echo=TRUE, eval=FALSE}
+
+```
+
+# Session Information {.unnumbered}
+
+```{r}
+sessionInfo()
+
+```
+
